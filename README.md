@@ -27,7 +27,7 @@ The template accepts the following parameters:
 ## Steps to Deploy the CloudFormation Stack
 
 1. **Download the CloudFormation Template:**
-   - Download or copy the `ec2-instance.yaml` file (this CloudFormation template).
+   - Download or copy the `Jenkins-ec2.yaml` file (this CloudFormation template).
 
 2. **Log in to AWS Management Console:**
    - Navigate to the [AWS CloudFormation Console](https://console.aws.amazon.com/cloudformation).
