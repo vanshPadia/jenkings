@@ -1,28 +1,40 @@
 AWSTemplateFormatVersion: '2010-09-09'
-Description: CloudFormation template to create a simple EC2 instance
+Description: CloudFormation template to create an EC2 instance with parameters and user data
 
 Parameters:
   InstanceType:
+    Description: EC2 instance type
     Type: String
     Default: t2.micro
     AllowedValues:
       - t2.micro
       - t2.small
       - t2.medium
-    Description: EC2 instance type
+    ConstraintDescription: Must be a valid EC2 instance type.
 
   KeyName:
+    Description: Name of an existing EC2 KeyPair to enable SSH access to the instance
     Type: AWS::EC2::KeyPair::KeyName
-    Description: Name of an existing EC2 KeyPair for SSH access
+    ConstraintDescription: Must be the name of an existing EC2 KeyPair.
+
+  Environment:
+    Description: Environment type
+    Type: String
+    Default: Dev
+    AllowedValues:
+      - Dev
+      - Prod
+    ConstraintDescription: Environment must be either Dev or Prod.
 
   SubnetId:
+    Description: The Subnet ID where the EC2 instance will be launched
     Type: AWS::EC2::Subnet::Id
-    Description: Subnet ID where the EC2 instance will be launched
+    ConstraintDescription: Must be a valid subnet ID.
 
   AMIId:
-    Type: AWS::EC2::Image::Id
+    Description: The AMI ID for the EC2 instance
+    Type: String
     Default: ami-0dee22c13ea7a9a67
-    Description: AMI ID for the EC2 instance
 
 Resources:
   EC2Instance:
@@ -31,21 +43,56 @@ Resources:
       InstanceType: !Ref InstanceType
       KeyName: !Ref KeyName
       ImageId: !Ref AMIId
-      SubnetId: !Ref SubnetId
-      AssociatePublicIpAddress: true
-      UserData:
+      NetworkInterfaces:
+        - SubnetId: !Ref SubnetId
+          DeviceIndex: 0
+          AssociatePublicIpAddress: true
+      UserData: 
         Fn::Base64: !Sub |
           #!/bin/bash
+          # Update system packages
+          echo "Updating system packages..."
           sudo apt update
-          sudo apt install -y openjdk-17-jre jenkins
+          # Install OpenJDK 17
+          echo "Installing OpenJDK 17..."
+          sudo apt install -y openjdk-17-jre
+          # Add Jenkins repository key
+          echo "Adding Jenkins repository key..."
+          curl -fsSL https://pkg.jenkins.io/debian-stable/jenkins.io-2023.key | sudo tee /usr/share/keyrings/jenkins-keyring.asc > /dev/null
+          # Add Jenkins repository
+          echo "Adding Jenkins repository..."
+          echo deb [signed-by=/usr/share/keyrings/jenkins-keyring.asc] https://pkg.jenkins.io/debian-stable binary/ | sudo tee /etc/apt/sources.list.d/jenkins.list > /dev/null
+          # Update package list and install Jenkins
+          echo "Updating package list..."
+          sudo apt update
+          echo "Installing Jenkins..."
+          sudo apt install -y jenkins
+          # Start and enable Jenkins service
+          echo "Starting Jenkins service..."
           sudo systemctl start jenkins
           sudo systemctl enable jenkins
-          
+          # Output initial admin password
+          echo "Initial Jenkins admin password:"
+          sudo cat /var/lib/jenkins/secrets/initialAdminPassword
+          # Add Jenkins user to Docker group
+          echo "Adding Jenkins user to Docker group..."
+          sudo usermod -aG docker jenkins
+          # Restart Jenkins to apply Docker group changes
+          echo "Restarting Jenkins..."
+          sudo systemctl restart jenkins
+          echo "Jenkins setup complete."
+
+      Tags:
+        - Key: Name
+          Value: !Sub "${Environment}-EC2Instance"
+        - Key: Environment
+          Value: !Ref Environment
+
 Outputs:
   InstanceId:
+    Description: The Instance ID of the newly created EC2 instance
     Value: !Ref EC2Instance
-    Description: The Instance ID of the EC2 instance
 
   PublicIP:
-    Value: !GetAtt EC2Instance.PublicIp
     Description: Public IP address of the EC2 instance
+    Value: !GetAtt EC2Instance.PublicIp
